@@ -184,6 +184,18 @@
   .dialog p { color: var(--muted); font-size: 14px; }
   .dialog-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
 
+  .consent-banner {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #fff; border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 6px rgba(0,0,0,.15);
+    padding: 14px 20px; z-index: 70;
+    display: flex; align-items: center; justify-content: center;
+    gap: 16px; flex-wrap: wrap; text-align: center;
+  }
+  .consent-banner p { margin: 0; font-size: 13px; color: var(--muted); max-width: 500px; }
+  .consent-banner a { color: var(--primary); }
+  .consent-actions { display: flex; gap: 10px; flex-shrink: 0; }
+
   .hidden { display: none !important; }
 
   @media (max-width: 700px) {
@@ -349,6 +361,14 @@
   </div>
 </div>
 
+<div id="consentBanner" class="consent-banner hidden">
+  <p>We use cookies to analyze traffic and improve this site. See our <a href="#" onclick="return false;">privacy info</a>.</p>
+  <div class="consent-actions">
+    <button id="consentReject" class="btn btn-outline">Reject</button>
+    <button id="consentAccept" class="btn btn-primary">Accept</button>
+  </div>
+</div>
+
 <script>
 /**
  * All timings are configurable here. Nothing in this file ever uploads
@@ -414,6 +434,15 @@ const CONFIG = {
   COMMENT_MAX_ROTATION_DEG: 14,   // max random tilt applied to each card in the pile
   COMMENT_CYCLE_MS: 6000,         // how often the top-of-pile cards are reshuffled
   COMMENT_CYCLE_COUNT: 3,         // how many cards get brought to the top each cycle
+
+  // ----- Google Analytics (consent-gated) -----
+  // Paste your own GA4 Measurement ID below (looks like "G-XXXXXXXXXX").
+  // The gtag.js script is only ever injected into the page after the user
+  // clicks "Accept" on the cookie banner below — if they click "Reject",
+  // or haven't chosen yet, analytics never loads at all. Their choice is
+  // remembered in localStorage so the banner only appears once.
+  GOOGLE_ANALYTICS_ID: "G-XXXXXXXXXX",
+  CONSENT_STORAGE_KEY: "watermark_cookie_consent",
 };
 
 (function () {
@@ -742,6 +771,60 @@ const CONFIG = {
     { threshold: 0 }
   );
   observer.observe(section);
+})();
+
+// Cookie consent + Google Analytics: gtag.js is only ever loaded after the
+// user explicitly clicks "Accept". Clicking "Reject" (or leaving the
+// banner open) means analytics never loads, and the choice is remembered
+// in localStorage so the banner isn't shown again on repeat visits.
+(function () {
+  "use strict";
+  const banner = document.getElementById("consentBanner");
+  const acceptBtn = document.getElementById("consentAccept");
+  const rejectBtn = document.getElementById("consentReject");
+  if (!banner || !acceptBtn || !rejectBtn) return;
+
+  const STORAGE_KEY = CONFIG.CONSENT_STORAGE_KEY;
+
+  function loadGoogleAnalytics() {
+    const gaId = CONFIG.GOOGLE_ANALYTICS_ID;
+    if (!gaId || document.getElementById("ga-gtag-script")) return;
+    const script = document.createElement("script");
+    script.id = "ga-gtag-script";
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`;
+    document.head.appendChild(script);
+
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { window.dataLayer.push(arguments); }
+    window.gtag = gtag;
+    gtag("js", new Date());
+    gtag("config", gaId);
+  }
+
+  let stored = null;
+  try {
+    stored = localStorage.getItem(STORAGE_KEY);
+  } catch (e) {
+    // localStorage unavailable (e.g. privacy mode) — treat as no choice made yet.
+  }
+
+  if (stored === "accepted") {
+    loadGoogleAnalytics();
+  } else if (stored !== "rejected") {
+    banner.classList.remove("hidden");
+  }
+  // stored === "rejected": banner stays hidden, analytics never loads.
+
+  acceptBtn.addEventListener("click", () => {
+    try { localStorage.setItem(STORAGE_KEY, "accepted"); } catch (e) { /* ignore */ }
+    loadGoogleAnalytics();
+    banner.classList.add("hidden");
+  });
+  rejectBtn.addEventListener("click", () => {
+    try { localStorage.setItem(STORAGE_KEY, "rejected"); } catch (e) { /* ignore */ }
+    banner.classList.add("hidden");
+  });
 })();
 </script>
 </body>
