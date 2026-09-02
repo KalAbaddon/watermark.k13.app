@@ -7,66 +7,81 @@ look). Uploaded images are only read locally in the visitor's browser (never sen
 anywhere), the "upload" and "removal" steps are simulated with timers, and the
 process always ends in a fake "LLM refused for copyright reasons" error. All
 timings are controlled by the `CONFIG` object inside the `<script>` tag in
-`index.html`.
+`index.html` (see comments in that file for what each setting does).
 
-Being a single file makes it trivial to host anywhere, including pasting straight
-into a Squarespace Code Block (see below) — no build step, no separate `.css`/`.js`
-files to link up.
+Being a single file makes it trivial to host anywhere with zero build step.
 
-## Deploying to `watermark.k13.app` on Squarespace
+## Testing it quickly (before pointing your domain anywhere)
 
-You already own `k13.app`. Here's the full checklist to get this fake site live at
-`https://watermark.k13.app` using your existing Squarespace account:
+- **GitHub Pages preview**: enable Pages for this repo (*Settings → Pages → Source:
+  deploy from a branch*, pick this branch, `/ (root)` folder) and it'll be live at
+  `https://<your-username>.github.io/watermark.k13.app/` within a minute or two.
+- Or just open `index.html` directly from disk / GitHub's "Raw" view in your
+  browser — everything works fully offline since there's no backend.
 
-1. **Create a blank page in Squarespace**
-   - In the Squarespace editor, go to *Pages* → add a new page (a blank/regular page
-     works fine — you don't need a specific template).
-   - Give it any title (e.g. "Watermark Tool"); this page's content will be replaced
-     entirely by the embed below, so its title/URL slug don't matter much.
+## Deploying: hosted on GitHub Pages, domain via Squarespace (DNS only)
 
-2. **Add a Code Block with the site's content**
-   - Edit that page and add a **Code Block** (not a "Markdown" block — it must be
-     the Code Block so `<style>`/`<script>` tags aren't stripped).
-   - Open `index.html` from this repo, copy its **entire contents**, and paste them
-     into the Code Block.
-   - Save the page.
+**Important**: this site is hosted on **GitHub Pages**, not on Squarespace.
+Squarespace is only acting as your **domain registrar/DNS provider** for `k13.app`
+— you're just pointing the `watermark` subdomain's DNS at GitHub, nothing is
+uploaded to or built in Squarespace itself.
 
-3. **Connect the `watermark` subdomain to Squarespace**
-   - In Squarespace: *Settings* → *Domains* → *Add Domain* → choose **"Use a domain
-     I own"** and enter `watermark.k13.app`.
-   - Squarespace will show you a DNS record to add (typically a `CNAME` record for
-     host `watermark` pointing to something like `ext-cust.squarespace.com`, or an
-     `A`/`ALIAS` record — Squarespace will give you the exact values).
-   - Go to wherever `k13.app`'s DNS is managed (your domain registrar or DNS
-     provider) and add that exact record for the `watermark` subdomain.
-   - Back in Squarespace, click verify/connect. DNS changes can take anywhere from a
-     few minutes up to ~24-48 hours to propagate.
+### 1. Turn on GitHub Pages for this repo
+- *Settings → Pages → Build and deployment → Source*: **"Deploy from a branch"**.
+- Pick the branch you want live (e.g. `main`) and folder `/ (root)`, then **Save**.
+- GitHub will give you a default URL like `https://kalabaddon.github.io/watermark.k13.app/`
+  — confirm it loads and works before moving on.
 
-4. **Point the subdomain at the page you built**
-   - Still under *Settings* → *Domains*, select `watermark.k13.app` and set it to
-     point at the page you created in step 1 (some Squarespace plans map a
-     connected subdomain straight to a single page; others require it to be your
-     site's homepage — if so, temporarily set that page as the homepage, or move
-     its content to the homepage instead).
+### 2. Tell GitHub Pages about your custom domain
+- Still under *Settings → Pages*, in the **Custom domain** field enter
+  `watermark.k13.app` and save.
+- This automatically creates/commits a `CNAME` file in the repo root containing
+  `watermark.k13.app` — don't remove it, GitHub uses it to know which domain to
+  serve and to validate/renew the HTTPS certificate.
 
-5. **Enable HTTPS**
-   - Once the domain shows as "Connected"/verified in Squarespace, HTTPS is
-     automatic — Squarespace issues a free SSL certificate (via Let's Encrypt) for
-     every connected domain, usually within a few hours of DNS verifying.
-   - Confirm the *Secure connection* / *HTTPS* toggle is on under the domain's
-     settings, then visit `https://watermark.k13.app` and check for the padlock
-     icon in your browser.
+### 3. Add the DNS record at Squarespace (your domain provider)
+Since `watermark` is a **subdomain** (not the bare `k13.app` apex), you only need
+**one CNAME record** — you do **not** need `A` records (those are only for
+pointing the root/apex domain, e.g. `k13.app` itself, at GitHub's IPs).
 
-6. **Verify the fake flow works end-to-end**
-   - Drag/drop or choose any image → confirm it previews after ~2s.
-   - Click *Remove Watermark* → confirm the progress bar crawls slowly.
-   - Move your mouse toward the top of the browser window → confirm the "don't
-     leave" banner appears and the bar jumps ~25%.
-   - Click *Stop* → confirm the window greys out with an "are you sure?" dialog and
-     the bar speeds up in the background.
-   - Let it finish → confirm you always get: *"LLM refused to remove watermark for
-     copyright reasons. Please check settings and try again."*
+In Squarespace's domain DNS settings for `k13.app`, add:
 
-If you ever want to change timings (upload delay, processing duration, jump %,
-stop-dialog speed-up), edit the `CONFIG` object inside `index.html`'s `<script>`
-tag — then just re-copy/paste the updated file into the Code Block.
+| Type  | Host        | Data / Value                  |
+|-------|-------------|--------------------------------|
+| CNAME | `watermark` | `kalabaddon.github.io.`        |
+
+(Replace `kalabaddon` with your actual GitHub username/org if different — it must
+point at `<username>.github.io.`, with the trailing dot if Squarespace requires
+fully-qualified values; if it errors on the trailing dot, omit it.)
+
+- Remove/skip any conflicting `A`, `ALIAS`, or `URL redirect` records Squarespace
+  may have pre-populated for that same `watermark` host.
+- Save the DNS changes. Propagation is usually fast (minutes) but can take up to
+  24–48 hours.
+
+### 4. Verify and enable HTTPS on GitHub's side
+- Back in *Settings → Pages*, GitHub will show a "DNS check in progress" (then
+  "✅ DNS check successful") status once the CNAME resolves correctly.
+- Once verified, tick **"Enforce HTTPS"** (this checkbox only becomes available
+  after the domain check passes) — GitHub then issues a free Let's Encrypt
+  certificate for `watermark.k13.app` automatically.
+- Visit `https://watermark.k13.app` and confirm the padlock/secure icon shows.
+
+### 5. Verify the fake flow works end-to-end
+- Drag/drop or choose any image → confirm it previews after a size-based fake
+  upload delay (larger files take longer, per the simulated `128 KB/s` speed).
+- Click *Remove Watermark* → confirm the progress bar and its numeric timer move
+  together, steady at first then slowing down a lot near the end.
+- Move your mouse toward the top of the browser window → confirm the "don't
+  leave" banner appears near the top (never covering the progress bar) and the
+  bar jumps forward ~25%.
+- Click *Stop* → confirm the window greys out with an "are you sure?" dialog
+  positioned near the top of the screen, and the bar speeds up in the background
+  while it's open.
+- Let it finish (or confirm Stop) → confirm you always get: *"LLM refused to
+  remove watermark for copyright reasons. Please check settings and try again."*
+
+If you ever want to change timings (upload speed/variance, processing duration
+per mode, easing point, jump %, stop-dialog speed-up), edit the `CONFIG` object
+inside `index.html`'s `<script>` tag, commit, and push — GitHub Pages will
+redeploy automatically.
