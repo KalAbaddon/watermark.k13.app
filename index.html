@@ -126,7 +126,9 @@
     padding: 0 20px;
     text-align: center;
   }
+  section.comments { max-width: 900px; }
   section.donate h2, section.comments h2 { font-size: 18px; font-weight: 500; }
+  .comments-hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
   .donate-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
   .donate-row a {
     padding: 10px 18px;
@@ -138,13 +140,24 @@
   }
   .donate-row a:hover { background: #f1f3f4; }
 
-  .comments { text-align: left; position: relative; }
-  .comment {
-    border-bottom: 1px solid var(--border);
-    padding: 12px 0;
-    font-size: 14px;
+  .comments { text-align: left; }
+  .comment-pile {
     position: relative;
-    transform: translate3d(0, 0, 0);
+    height: 560px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+  .comment {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 260px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
     will-change: transform;
   }
   .comment b { font-weight: 500; }
@@ -288,6 +301,8 @@
 
 <section id="comments" class="comments card">
   <h2>Comments</h2>
+  <p class="comments-hint">25 people found a combo that worked. Good luck reading them all at once — they don't sit still.</p>
+  <div id="commentPile" class="comment-pile">
   <div class="comment"><b>jd_pixels</b> <span>2 days ago</span><p>Switched to Gemini 3.6 Pro but paired it with the old Sage Attention 1 profile from the changelog — worked instantly, no more spinning forever!</p></div>
   <div class="comment"><b>marketing_karen</b> <span>5 days ago</span><p>PSA: pick WEBP output first, THEN force precision back to FP32. That exact combo finally got me a clean result.</p></div>
   <div class="comment"><b>throwaway_dev99</b> <span>1 week ago</span><p>Grok 4.6 + the old DDIM sampler (yes, the discontinued one) worked first try for me last night.</p></div>
@@ -313,6 +328,7 @@
   <div class="comment"><b>tonemap_tara</b> <span>1 year ago</span><p>Aggressive strength with Sage Attention 1 (the original version) is what finally did it for me.</p></div>
   <div class="comment"><b>alpha_andy</b> <span>1 year ago</span><p>Balanced strength + the old Euler A sampler from before the Turbo update worked instantly.</p></div>
   <div class="comment"><b>crop_cassidy</b> <span>1 year ago</span><p>GPT-5.6 combined with the retired FP32 precision mode fixed it for me after countless failed attempts. Hoping they bring FP32 back as an option!</p></div>
+  </div>
 </section>
 
 <div id="exitBanner" class="banner hidden">
@@ -384,13 +400,20 @@ const CONFIG = {
     "LLM refused to remove watermark for copyright reasons. Please check settings and try again \u2014 " +
     "browse the comments below, other users often share the exact setting combination that worked for them.",
 
-  // ----- Floating "cloud" comments -----
-  // Comments gently drift away from the cursor when it gets close, then
-  // drift back once the cursor moves away. The whole effect pauses
-  // automatically whenever the comments section is scrolled out of view.
-  COMMENT_FLOAT_RADIUS_PX: 160,   // cursor distance at which a comment starts moving
-  COMMENT_FLOAT_MAX_PUSH_PX: 36,  // furthest a comment will drift away from the cursor
+  // ----- Floating pile of comment cards -----
+  // Comments are scattered into an overlapping pile that gently drifts
+  // away from the cursor (impossible to read them all at once), and the
+  // whole effect pauses automatically whenever the section scrolls out
+  // of view. Every COMMENT_CYCLE_MS, a fresh batch of cards is shuffled
+  // to the top of the pile so different ones become readable over time.
+  COMMENT_FLOAT_RADIUS_PX: 160,   // cursor distance at which a card starts moving
+  COMMENT_FLOAT_MAX_PUSH_PX: 36,  // furthest a card will drift away from the cursor
   COMMENT_FLOAT_EASE: 0.04,       // 0-1, lower = slower/dreamier drifting motion
+  COMMENT_PILE_HEIGHT_PX: 560,    // height of the pile container
+  COMMENT_CARD_WIDTH_PX: 260,     // width of each card (must match CSS .comment width)
+  COMMENT_MAX_ROTATION_DEG: 14,   // max random tilt applied to each card in the pile
+  COMMENT_CYCLE_MS: 6000,         // how often the top-of-pile cards are reshuffled
+  COMMENT_CYCLE_COUNT: 3,         // how many cards get brought to the top each cycle
 };
 
 (function () {
@@ -599,21 +622,45 @@ const CONFIG = {
   });
 })();
 
-// Floating "cloud" comments: drift away from the cursor, pause while
-// scrolled out of view (kept independent of the upload/processing logic).
+// Floating pile of comment cards: scattered/overlapping, drifting away
+// from the cursor, with the top-of-pile cards reshuffled periodically.
+// Pauses automatically while scrolled out of view (kept independent of
+// the upload/processing logic).
 (function () {
   "use strict";
   const section = document.getElementById("comments");
-  if (!section) return;
-  const items = Array.from(section.querySelectorAll(".comment")).map((el) => ({
-    el,
-    x: 0, y: 0,       // current drift offset
-    targetX: 0, targetY: 0, // desired drift offset
-  }));
+  const pile = document.getElementById("commentPile");
+  if (!section || !pile) return;
+
+  const cardEls = Array.from(pile.querySelectorAll(".comment"));
+  let zCounter = cardEls.length;
+
+  function layoutPile() {
+    const containerWidth = pile.clientWidth;
+    const containerHeight = CONFIG.COMMENT_PILE_HEIGHT_PX;
+    const cardWidth = CONFIG.COMMENT_CARD_WIDTH_PX;
+    const maxRot = CONFIG.COMMENT_MAX_ROTATION_DEG;
+    const maxLeft = Math.max(0, containerWidth - cardWidth);
+
+    return cardEls.map((el, i) => {
+      const baseX = Math.random() * maxLeft;
+      const cardHeight = el.offsetHeight || 120;
+      const maxTop = Math.max(0, containerHeight - cardHeight);
+      const baseY = Math.random() * maxTop;
+      const rot = (Math.random() * 2 - 1) * maxRot;
+      el.style.left = `${baseX}px`;
+      el.style.top = `${baseY}px`;
+      el.style.zIndex = String(i + 1);
+      return { el, baseRot: rot, x: 0, y: 0, targetX: 0, targetY: 0 };
+    });
+  }
+
+  const items = layoutPile();
 
   let mouseX = -9999;
   let mouseY = -9999;
   let rafId = null;
+  let cycleTimer = null;
 
   document.addEventListener("mousemove", (e) => {
     mouseX = e.clientX;
@@ -651,19 +698,40 @@ const CONFIG = {
     for (const item of items) {
       item.x += (item.targetX - item.x) * ease;
       item.y += (item.targetY - item.y) * ease;
-      item.el.style.transform = `translate3d(${item.x.toFixed(2)}px, ${item.y.toFixed(2)}px, 0)`;
+      item.el.style.transform =
+        `translate3d(${item.x.toFixed(2)}px, ${item.y.toFixed(2)}px, 0) rotate(${item.baseRot.toFixed(2)}deg)`;
     }
     rafId = requestAnimationFrame(tick);
   }
 
+  // Bring a random batch of cards to the top of the pile so the readable
+  // ones on top keep changing (impossible to read every card at once).
+  function reshuffleTop() {
+    const count = Math.min(CONFIG.COMMENT_CYCLE_COUNT, items.length);
+    const pool = items.slice();
+    for (let i = 0; i < count; i++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      const [picked] = pool.splice(idx, 1);
+      zCounter += 1;
+      picked.el.style.zIndex = String(zCounter);
+    }
+  }
+
   function start() {
-    if (rafId !== null) return;
-    rafId = requestAnimationFrame(tick);
+    if (rafId === null) rafId = requestAnimationFrame(tick);
+    if (cycleTimer === null) {
+      cycleTimer = setInterval(reshuffleTop, CONFIG.COMMENT_CYCLE_MS);
+    }
   }
   function stop() {
-    if (rafId === null) return;
-    cancelAnimationFrame(rafId);
-    rafId = null;
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    if (cycleTimer !== null) {
+      clearInterval(cycleTimer);
+      cycleTimer = null;
+    }
   }
 
   const observer = new IntersectionObserver(
