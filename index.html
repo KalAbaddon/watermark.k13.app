@@ -178,21 +178,62 @@
 <div class="shell">
   <aside class="options card">
     <h2>Model</h2>
-    <label class="opt"><input type="radio" name="model" checked> GPT-Vision-9 Ultra</label>
-    <label class="opt"><input type="radio" name="model"> ClarityNet Diffusion XL</label>
-    <label class="opt"><input type="radio" name="model"> DeepWash Pro Max</label>
+    <label class="opt"><input type="radio" name="model"> GPT-5.6</label>
+    <label class="opt"><input type="radio" name="model" checked> Gemini 3.6 Pro</label>
+    <label class="opt"><input type="radio" name="model"> Claude Sonnet 5</label>
+    <label class="opt"><input type="radio" name="model"> Grok 4.6</label>
+    <label class="opt"><input type="radio" name="model"> Llama 4.2</label>
+    <label class="opt"><input type="radio" name="model"> Mistral Large 3</label>
+    <label class="opt"><input type="radio" name="model"> DeepSeek V4</label>
+    <label class="opt"><input type="radio" name="model"> Qwen 3.5</label>
+    <label class="opt"><input type="radio" name="model"> Amazon Nova Pro 2</label>
+    <label class="opt"><input type="radio" name="model"> Cohere Command A2</label>
 
-    <h2>Strength</h2>
-    <label class="opt"><input type="radio" name="strength"> Gentle</label>
-    <label class="opt"><input type="radio" name="strength" checked> Balanced</label>
-    <label class="opt"><input type="radio" name="strength"> Aggressive</label>
+    <details open>
+      <summary style="padding:8px 4px;">General options</summary>
+      <h2>Strength</h2>
+      <label class="opt"><input type="radio" name="strength"> Gentle</label>
+      <label class="opt"><input type="radio" name="strength" checked> Balanced</label>
+      <label class="opt"><input type="radio" name="strength"> Aggressive</label>
+      <label class="opt"><input type="radio" name="strength"> Nuclear (beta)</label>
+
+      <h2>Output format</h2>
+      <label class="opt"><input type="radio" name="format" checked> PNG</label>
+      <label class="opt"><input type="radio" name="format"> WEBP</label>
+      <label class="opt"><input type="radio" name="format"> TIFF</label>
+      <label class="opt"><input type="radio" name="format"> AVIF</label>
+
+      <h2>Color space</h2>
+      <label class="opt"><input type="radio" name="colorspace" checked> sRGB</label>
+      <label class="opt"><input type="radio" name="colorspace"> Adobe RGB</label>
+      <label class="opt"><input type="radio" name="colorspace"> ProPhoto RGB</label>
+
+      <h2>License check</h2>
+      <label class="opt"><input type="radio" name="license" checked> Standard</label>
+      <label class="opt"><input type="radio" name="license"> Extended</label>
+    </details>
 
     <details>
-      <summary style="padding:8px 4px;">Advanced settings</summary>
-      <label class="opt"><input type="radio" name="engine" checked> Context-Aware Fill</label>
-      <label class="opt"><input type="radio" name="engine"> Generative Patch</label>
-      <label class="opt"><input type="radio" name="format" checked> PNG output</label>
-      <label class="opt"><input type="radio" name="format"> WEBP output</label>
+      <summary style="padding:8px 4px;">Advanced options</summary>
+      <h2>Attention mechanism</h2>
+      <label class="opt"><input type="radio" name="attention" checked> Sage Attention 2</label>
+      <label class="opt"><input type="radio" name="attention"> Flash Attention 3</label>
+      <label class="opt"><input type="radio" name="attention"> xFormers Memory-Efficient</label>
+
+      <h2>Precision</h2>
+      <label class="opt"><input type="radio" name="precision"> FP8</label>
+      <label class="opt"><input type="radio" name="precision" checked> BF16</label>
+      <label class="opt"><input type="radio" name="precision"> FP16</label>
+
+      <h2>Sampler</h2>
+      <label class="opt"><input type="radio" name="sampler" checked> DPM++ 3M SDE</label>
+      <label class="opt"><input type="radio" name="sampler"> Euler A Turbo</label>
+      <label class="opt"><input type="radio" name="sampler"> UniPC</label>
+
+      <h2>Inpainting engine</h2>
+      <label class="opt"><input type="radio" name="engine" checked> Context-Aware Fill v3</label>
+      <label class="opt"><input type="radio" name="engine"> Generative Patch v2</label>
+      <label class="opt"><input type="radio" name="engine"> Neural Clone Stamp</label>
     </details>
   </aside>
 
@@ -233,9 +274,31 @@
 
 <section class="comments card">
   <h2>Comments</h2>
-  <div class="comment"><b>jd_pixels</b> <span>2 days ago</span><p>You have to pick "Aggressive" strength with "Generative Patch" engine or it just spins forever.</p></div>
-  <div class="comment"><b>marketing_karen</b> <span>4 days ago</span><p>Switch output to WEBP before choosing your model — finally stopped erroring for me.</p></div>
-  <div class="comment"><b>sarah.lens</b> <span>1 week ago</span><p>Tried every combo for 2 hours, still get the copyright error 😂</p></div>
+  <div class="comment"><b>jd_pixels</b> <span>2 days ago</span><p>Switched to Gemini 3.6 Pro but paired it with the old Sage Attention 1 profile from the changelog — worked instantly, no more spinning forever!</p></div>
+  <div class="comment"><b>marketing_karen</b> <span>5 days ago</span><p>PSA: pick WEBP output first, THEN force precision back to FP32. That exact combo finally got me a clean result.</p></div>
+  <div class="comment"><b>throwaway_dev99</b> <span>1 week ago</span><p>Grok 4.6 + the old DDIM sampler (yes, the discontinued one) worked first try for me last night.</p></div>
+  <div class="comment"><b>gearbox_greg</b> <span>2 weeks ago</span><p>Claude Sonnet 5 with Extended license check AND the legacy Flash Attention 2 setting did the trick after months of trying.</p></div>
+  <div class="comment"><b>notaprogrammer</b> <span>3 weeks ago</span><p>Finally! Set the model to Llama 4.2, then dig up "Legacy Inpaint v1" from an old thread — that combo is what got mine through.</p></div>
+  <div class="comment"><b>pixel_whisperer</b> <span>1 month ago</span><p>Nuclear (beta) strength + the old Qwen 2.5 checkpoint = success. Wish they'd bring that model version back officially.</p></div>
+  <div class="comment"><b>cropcircle_carl</b> <span>5 weeks ago</span><p>DeepSeek V4 paired with the retired "sRGB Legacy Gamma" profile did it for me. Don't ask me why, just try it.</p></div>
+  <div class="comment"><b>inkjet_ivy</b> <span>6 weeks ago</span><p>TIFF output + the old Command R+ combo cleared it up instantly. Shame Command R+ got removed from the list, it still works somehow!</p></div>
+  <div class="comment"><b>rendering_rae</b> <span>2 months ago</span><p>Mistral Large 3 with the old Euler A (non-turbo) sampler from the changelog worked like a charm.</p></div>
+  <div class="comment"><b>batch_bailey</b> <span>10 weeks ago</span><p>Amazon Nova Pro 2 + the old "Basic License Check" (had to look up how to force it) finally removed my watermark clean.</p></div>
+  <div class="comment"><b>vector_vic</b> <span>3 months ago</span><p>GPT-5.6 with the retired xFormers Legacy attention mode — an old forum post mentioned it and it actually worked for me.</p></div>
+  <div class="comment"><b>filter_fiona</b> <span>14 weeks ago</span><p>ProPhoto RGB colorspace + Grok 3 (the previous Grok) got it done in one pass, first time in weeks.</p></div>
+  <div class="comment"><b>dither_dan</b> <span>4 months ago</span><p>Qwen 3.5 model but forcing the old FP32 precision worked when nothing else would.</p></div>
+  <div class="comment"><b>layer_lacey</b> <span>18 weeks ago</span><p>AVIF output paired with the old GPT-4.5 checkpoint cleared my watermark completely.</p></div>
+  <div class="comment"><b>mesh_manny</b> <span>5 months ago</span><p>Cohere Command A2 + legacy Sage Attention 1 mode. Don't know how but it processed successfully.</p></div>
+  <div class="comment"><b>noise_nadia</b> <span>6 months ago</span><p>Standard license check with Claude 3.7 Sonnet (the previous Claude) did it for me after 3 hours of trying everything else.</p></div>
+  <div class="comment"><b>resize_rosco</b> <span>7 months ago</span><p>DPM++ 3M SDE sampler + the old Nova Pro 1 model combo actually completed for me last night!</p></div>
+  <div class="comment"><b>swatch_sammy</b> <span>8 months ago</span><p>Adobe RGB + Mistral Large 2 (the older large model) worked on the first try, weirdly.</p></div>
+  <div class="comment"><b>gradient_gary</b> <span>9 months ago</span><p>BF16 precision with DeepSeek V3 from before the update finally got me a clean image back.</p></div>
+  <div class="comment"><b>opacity_olive</b> <span>10 months ago</span><p>Gentle strength + the retired Llama 3.3 weights got mine through without erroring.</p></div>
+  <div class="comment"><b>kernel_kim</b> <span>11 months ago</span><p>Old PNG-8 output (had to force it manually) with Gemini 3.2 worked when the new Gemini kept failing.</p></div>
+  <div class="comment"><b>hue_hank</b> <span>11 months ago</span><p>The retired Flash Attention 2 + Grok 4.6 combo cleared my image after a full afternoon of tests.</p></div>
+  <div class="comment"><b>tonemap_tara</b> <span>1 year ago</span><p>Aggressive strength with Sage Attention 1 (the original version) is what finally did it for me.</p></div>
+  <div class="comment"><b>alpha_andy</b> <span>1 year ago</span><p>Balanced strength + the old Euler A sampler from before the Turbo update worked instantly.</p></div>
+  <div class="comment"><b>crop_cassidy</b> <span>1 year ago</span><p>GPT-5.6 combined with the retired FP32 precision mode fixed it for me after countless failed attempts. Hoping they bring FP32 back as an option!</p></div>
 </section>
 
 <div id="exitBanner" class="banner hidden">
