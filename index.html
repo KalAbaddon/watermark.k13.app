@@ -138,8 +138,15 @@
   }
   .donate-row a:hover { background: #f1f3f4; }
 
-  .comments { text-align: left; }
-  .comment { border-bottom: 1px solid var(--border); padding: 12px 0; font-size: 14px; }
+  .comments { text-align: left; position: relative; }
+  .comment {
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+    font-size: 14px;
+    position: relative;
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+  }
   .comment b { font-weight: 500; }
   .comment span { color: var(--muted); font-size: 12px; }
 
@@ -376,6 +383,14 @@ const CONFIG = {
   FAILURE_MESSAGE:
     "LLM refused to remove watermark for copyright reasons. Please check settings and try again \u2014 " +
     "browse the comments below, other users often share the exact setting combination that worked for them.",
+
+  // ----- Floating "cloud" comments -----
+  // Comments gently drift away from the cursor when it gets close, then
+  // drift back once the cursor moves away. The whole effect pauses
+  // automatically whenever the comments section is scrolled out of view.
+  COMMENT_FLOAT_RADIUS_PX: 160,   // cursor distance at which a comment starts moving
+  COMMENT_FLOAT_MAX_PUSH_PX: 36,  // furthest a comment will drift away from the cursor
+  COMMENT_FLOAT_EASE: 0.04,       // 0-1, lower = slower/dreamier drifting motion
 };
 
 (function () {
@@ -582,6 +597,83 @@ const CONFIG = {
     stopOverlay.classList.add("hidden");
     jumpProgress(100);
   });
+})();
+
+// Floating "cloud" comments: drift away from the cursor, pause while
+// scrolled out of view (kept independent of the upload/processing logic).
+(function () {
+  "use strict";
+  const section = document.getElementById("comments");
+  if (!section) return;
+  const items = Array.from(section.querySelectorAll(".comment")).map((el) => ({
+    el,
+    x: 0, y: 0,       // current drift offset
+    targetX: 0, targetY: 0, // desired drift offset
+  }));
+
+  let mouseX = -9999;
+  let mouseY = -9999;
+  let rafId = null;
+
+  document.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+  document.addEventListener("mouseleave", () => {
+    mouseX = -9999;
+    mouseY = -9999;
+  });
+
+  function updateTargets() {
+    const radius = CONFIG.COMMENT_FLOAT_RADIUS_PX;
+    const maxPush = CONFIG.COMMENT_FLOAT_MAX_PUSH_PX;
+    for (const item of items) {
+      const rect = item.el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = cx - mouseX;
+      const dy = cy - mouseY;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist < radius) {
+        const strength = ((radius - dist) / radius) * maxPush;
+        item.targetX = (dx / dist) * strength;
+        item.targetY = (dy / dist) * strength;
+      } else {
+        item.targetX = 0;
+        item.targetY = 0;
+      }
+    }
+  }
+
+  function tick() {
+    updateTargets();
+    const ease = CONFIG.COMMENT_FLOAT_EASE;
+    for (const item of items) {
+      item.x += (item.targetX - item.x) * ease;
+      item.y += (item.targetY - item.y) * ease;
+      item.el.style.transform = `translate3d(${item.x.toFixed(2)}px, ${item.y.toFixed(2)}px, 0)`;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    if (rafId !== null) return;
+    rafId = requestAnimationFrame(tick);
+  }
+  function stop() {
+    if (rafId === null) return;
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) start();
+      else stop();
+    },
+    { threshold: 0 }
+  );
+  observer.observe(section);
 })();
 </script>
 </body>
