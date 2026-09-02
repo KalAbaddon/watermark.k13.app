@@ -105,6 +105,9 @@
   .bar { height: 100%; width: 0; background: var(--primary); transition: width .2s linear; }
   .progress-wrap p { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
 
+  .upload-state { width: 100%; max-width: 320px; margin: 0 auto; }
+  .upload-label { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
   .result {
     margin-top: 16px;
     background: #fce8e6;
@@ -115,6 +118,7 @@
     font-size: 14px;
     text-align: left;
   }
+  .result a { color: var(--danger); font-weight: 600; text-decoration: underline; }
 
   section.donate, section.comments {
     max-width: 700px;
@@ -245,7 +249,10 @@
           Choose file<input id="fileInput" type="file" accept="image/*" hidden>
         </label>
       </div>
-      <p id="dzUploading" class="hidden"></p>
+      <div id="dzUploading" class="upload-state hidden">
+        <div class="track"><div id="uploadBar" class="bar"></div></div>
+        <p id="uploadLabel" class="upload-label"></p>
+      </div>
       <img id="preview" class="hidden" alt="preview">
     </div>
 
@@ -272,7 +279,7 @@
   </div>
 </section>
 
-<section class="comments card">
+<section id="comments" class="comments card">
   <h2>Comments</h2>
   <div class="comment"><b>jd_pixels</b> <span>2 days ago</span><p>Switched to Gemini 3.6 Pro but paired it with the old Sage Attention 1 profile from the changelog — worked instantly, no more spinning forever!</p></div>
   <div class="comment"><b>marketing_karen</b> <span>5 days ago</span><p>PSA: pick WEBP output first, THEN force precision back to FP32. That exact combo finally got me a clean result.</p></div>
@@ -334,13 +341,18 @@ const CONFIG = {
   TESTING_MODE: 1,
 
   // ----- Fake upload timing -----
-  // Upload time is calculated from the real file size, assuming this
-  // simulated upload speed (in KB/s) — just like a slow home connection.
+  // Upload speed is simulated as a naturally wandering value (like a real
+  // connection speeding up/slowing down), centered on UPLOAD_SPEED_KBPS but
+  // always kept within [UPLOAD_SPEED_MIN_KBPS, UPLOAD_SPEED_MAX_KBPS].
   UPLOAD_SPEED_KBPS: 128,
-  // Random variance applied to the calculated upload time, e.g. 0.2 = +/-20%,
-  // so it doesn't feel perfectly robotic. Set to 0 to disable.
-  UPLOAD_SPEED_VARIANCE: 0.2,
-  // Smallest allowed upload time, so even tiny files show a brief spinner.
+  UPLOAD_SPEED_MIN_KBPS: 25,
+  UPLOAD_SPEED_MAX_KBPS: 160,
+  // Max random change (KB/s) applied to the speed on each tick — bigger
+  // number = more jittery/erratic speed changes.
+  UPLOAD_SPEED_STEP_KBPS: 10,
+  // How often (ms) the simulated speed updates and the upload bar redraws.
+  UPLOAD_TICK_MS: 200,
+  // Smallest allowed upload time, so even tiny files show a brief animation.
   MIN_UPLOAD_DELAY_MS: 500,
 
   // ----- Fake processing ("Remove Watermark") timing -----
@@ -362,7 +374,8 @@ const CONFIG = {
 
   // Message always shown once "processing" reaches 100%, no matter what.
   FAILURE_MESSAGE:
-    "LLM refused to remove watermark for copyright reasons. Please check settings and try again.",
+    "LLM refused to remove watermark for copyright reasons. Please check settings and try again \u2014 " +
+    "browse the comments below, other users often share the exact setting combination that worked for them.",
 };
 
 (function () {
@@ -370,6 +383,8 @@ const CONFIG = {
   const dropzone = document.getElementById("dropzone");
   const dzIdle = document.getElementById("dzIdle");
   const dzUploading = document.getElementById("dzUploading");
+  const uploadBar = document.getElementById("uploadBar");
+  const uploadLabel = document.getElementById("uploadLabel");
   const preview = document.getElementById("preview");
   const fileInput = document.getElementById("fileInput");
   const removeBtn = document.getElementById("removeBtn");
@@ -386,14 +401,20 @@ const CONFIG = {
   const stopNo = document.getElementById("stopNo");
 
   // ---------------------------------------------------------------
-  // Fake upload: delay is based on real file size / simulated speed,
-  // plus a small random variance so it doesn't feel identical every time.
+  // Fake upload: simulated speed naturally wanders up/down every tick
+  // (a random walk, pulled gently back toward the center speed) within
+  // [MIN, MAX] KB/s, driving a real upload progress bar. Bytes "sent" =
+  // integral of speed over time, so a faster wander finishes sooner.
   // ---------------------------------------------------------------
-  function calcUploadDelayMs(fileSizeBytes) {
-    const sizeKb = fileSizeBytes / 1024;
-    const baseMs = (sizeKb / CONFIG.UPLOAD_SPEED_KBPS) * 1000;
-    const variance = 1 + (Math.random() * 2 - 1) * CONFIG.UPLOAD_SPEED_VARIANCE;
-    return Math.max(CONFIG.MIN_UPLOAD_DELAY_MS, baseMs * variance);
+  let uploadTimer = null;
+
+  function stepUploadSpeed(current) {
+    const step = (Math.random() * 2 - 1) * CONFIG.UPLOAD_SPEED_STEP_KBPS;
+    // Gentle mean-reversion so it wanders naturally but stays centered
+    // on UPLOAD_SPEED_KBPS instead of drifting off toward one edge.
+    const pull = (CONFIG.UPLOAD_SPEED_KBPS - current) * 0.1;
+    const next = current + step + pull;
+    return Math.max(CONFIG.UPLOAD_SPEED_MIN_KBPS, Math.min(CONFIG.UPLOAD_SPEED_MAX_KBPS, next));
   }
 
   function handleFile(file) {
@@ -401,22 +422,40 @@ const CONFIG = {
     dzIdle.classList.add("hidden");
     preview.classList.add("hidden");
     dzUploading.classList.remove("hidden");
-    dzUploading.textContent =
-      "Uploading at " + CONFIG.UPLOAD_SPEED_KBPS + " KB/s… (consider upgrading your internet provider)";
     result.classList.add("hidden");
     progressWrap.classList.add("hidden");
     resetProgress();
+    if (uploadTimer) { clearInterval(uploadTimer); uploadTimer = null; }
 
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target.result;
-      const delayMs = calcUploadDelayMs(file.size);
-      setTimeout(() => {
-        preview.src = dataUrl;
-        dzUploading.classList.add("hidden");
-        preview.classList.remove("hidden");
-        removeBtn.disabled = false;
-      }, delayMs);
+      const totalKb = Math.max(file.size / 1024, 1);
+      const minMs = CONFIG.MIN_UPLOAD_DELAY_MS;
+      let sentKb = 0;
+      let speed = CONFIG.UPLOAD_SPEED_KBPS;
+      const startedAt = Date.now();
+
+      uploadBar.style.width = "0%";
+      uploadLabel.textContent = "Uploading at " + Math.round(speed) + " KB/s… (consider upgrading your internet provider)";
+
+      uploadTimer = setInterval(() => {
+        speed = stepUploadSpeed(speed);
+        sentKb += (speed * CONFIG.UPLOAD_TICK_MS) / 1000;
+        const pct = Math.min(100, (sentKb / totalKb) * 100);
+        uploadBar.style.width = pct + "%";
+        uploadLabel.textContent =
+          "Uploading at " + Math.round(speed) + " KB/s… (consider upgrading your internet provider)";
+
+        if (pct >= 100 && Date.now() - startedAt >= minMs) {
+          clearInterval(uploadTimer);
+          uploadTimer = null;
+          preview.src = dataUrl;
+          dzUploading.classList.add("hidden");
+          preview.classList.remove("hidden");
+          removeBtn.disabled = false;
+        }
+      }, CONFIG.UPLOAD_TICK_MS);
     };
     reader.readAsDataURL(file);
   }
@@ -510,7 +549,12 @@ const CONFIG = {
     stopBtn.classList.add("hidden");
     exitBanner.classList.add("hidden");
     stopOverlay.classList.add("hidden");
-    result.textContent = CONFIG.FAILURE_MESSAGE;
+    result.textContent = "";
+    result.appendChild(document.createTextNode(CONFIG.FAILURE_MESSAGE + " "));
+    const reviewsLink = document.createElement("a");
+    reviewsLink.href = "#comments";
+    reviewsLink.textContent = "See what worked for other users \u2192";
+    result.appendChild(reviewsLink);
     result.classList.remove("hidden");
     removeBtn.disabled = false;
   }
