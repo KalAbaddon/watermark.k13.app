@@ -295,7 +295,7 @@
 
     <div id="progressWrap" class="progress-wrap hidden">
       <div class="track"><div id="bar" class="bar"></div></div>
-      <p id="progressLabel">0% · 0s</p>
+      <p id="progressLabel">0% · 30 sec remaining</p>
     </div>
 
     <div id="result" class="result hidden"></div>
@@ -399,21 +399,40 @@ const CONFIG = {
   MIN_UPLOAD_DELAY_MS: 500,
 
   // ----- Fake processing ("Remove Watermark") timing -----
-  // Maximum time (ms) for the progress bar to reach 100%, per mode above.
+  // Total time (ms) for the progress bar to reach 100%, per mode above.
+  // This budget includes the locked-in final stretch below.
   PROCESSING_MAX_TIME_MS: {
     TESTING: 45000,   // 45s while TESTING_MODE = 1
-    LIVE: 240000,     // 4 min while TESTING_MODE = 0
+    LIVE: 180000,     // 3 min while TESTING_MODE = 0
   },
-  // Progress (%) at which the bar switches from a steady pace to an
-  // exponential-style slow-down that eats up most of the remaining time.
-  EASE_START_PERCENT: 75,
+  // Progress (%) at which the bar enters the "final stretch": a slow-down
+  // that always takes exactly FINAL_STRETCH_SECONDS of real wall-clock
+  // time to finish, no matter how fast/slow everything before it went
+  // (speedups, jumps, etc. can never shorten or lengthen it).
+  EASE_START_PERCENT: 74,
+  // Real seconds the final stretch (EASE_START_PERCENT -> 100%) always
+  // takes, per mode. The on-screen timer shows this fixed number as a
+  // static "N sec remaining" placeholder for the entire first part of
+  // processing, then switches to counting down for real once the bar
+  // actually enters the final stretch.
+  FINAL_STRETCH_SECONDS: {
+    TESTING: 6,   // 6s while TESTING_MODE = 1
+    LIVE: 30,     // 30s while TESTING_MODE = 0
+  },
 
   PROGRESS_TICK_MS: 200,
-  // Instant progress jump applied the first time the exit-intent banner fires.
+  // Instant progress jump applied the first time the exit-intent banner
+  // fires. Every extra time the user tries to leave, the jump amount
+  // halves (25, then 12.5, then 6.25, ...) via EXIT_INTENT_JUMP_DECAY.
+  // Jumps can never push progress past EASE_START_PERCENT — the locked
+  // final stretch always still takes its full real time.
   EXIT_INTENT_JUMP_PERCENT: 25,
-  // Speed multiplier applied to the progress clock while the
-  // "are you sure you want to stop?" dialog is open.
-  STOP_DIALOG_SPEED_MULTIPLIER: 8,
+  EXIT_INTENT_JUMP_DECAY: 0.5,
+  // While the "are you sure you want to stop?" dialog is open, remaining
+  // progress (before the locked final stretch) fast-forwards just enough
+  // to finish within this many real seconds. Has no effect once already
+  // inside the locked final stretch.
+  STOP_DIALOG_MAX_SECONDS: 60,
 
   // Message always shown once "processing" reaches 100%, no matter what.
   FAILURE_MESSAGE:
@@ -543,61 +562,113 @@ const CONFIG = {
   // ---------------------------------------------------------------
   // Fake "remove watermark" processing.
   //
-  // Progress is driven by a single "elapsed" clock (0..maxTime), mapped
-  // to 0-100% through an easing curve: linear up to EASE_START_PERCENT,
-  // then an ease-out curve that slows down a lot but still reaches 100%
-  // exactly at maxTime. Jumps/speedups only ever move the elapsed clock
-  // forward, so progress can never take longer than maxTime.
+  // Two phases:
+  //  Phase 1 (0% -> EASE_START_PERCENT%): linear, driven by an elapsed
+  //    clock that can be sped up (stop dialog open) or jumped forward
+  //    (exit-intent). Its budget is whatever's left of the total
+  //    PROCESSING_MAX_TIME_MS after reserving the final stretch below.
+  //  Phase 2 (EASE_START_PERCENT% -> 100%, the "final stretch"): an
+  //    ease-out curve driven by its own real-time clock that always
+  //    takes exactly FINAL_STRETCH_SECONDS — completely immune to any
+  //    speedup or jump, so it can never be rushed or dragged out.
   // ---------------------------------------------------------------
-  let progress = 0, elapsedMs = 0, timer = null, exitUsed = false, stopOpen = false;
+  let progress = 0, phase = 1, elapsedMs = 0, timer = null, stopOpen = false;
+  let exitJumpNext = CONFIG.EXIT_INTENT_JUMP_PERCENT;
+  let stopMultiplier = 1;
 
   function maxTimeMs() {
     return CONFIG.TESTING_MODE ? CONFIG.PROCESSING_MAX_TIME_MS.TESTING : CONFIG.PROCESSING_MAX_TIME_MS.LIVE;
   }
-
-  // elapsed fraction (0..1) -> progress percent (0..100)
-  function curve(ef) {
-    const easeStart = CONFIG.EASE_START_PERCENT;
-    if (ef <= easeStart / 100) return ef * 100;
-    const u = (ef - easeStart / 100) / (1 - easeStart / 100);
-    return easeStart + (100 - easeStart) * (1 - Math.pow(1 - u, 3));
+  function finalStretchSeconds() {
+    return CONFIG.TESTING_MODE ? CONFIG.FINAL_STRETCH_SECONDS.TESTING : CONFIG.FINAL_STRETCH_SECONDS.LIVE;
+  }
+  function finalStretchMs() {
+    return finalStretchSeconds() * 1000;
+  }
+  // Real time budgeted for phase 1 — whatever's left after reserving the
+  // always-fixed final stretch out of the total processing time.
+  function phase1MaxMs() {
+    return Math.max(0, maxTimeMs() - finalStretchMs());
   }
 
-  // progress percent (0..100) -> elapsed fraction (0..1), inverse of curve()
-  function curveInverse(p) {
+  // Recompute `progress` from the current phase + phase-local elapsedMs.
+  function recomputeProgress() {
     const easeStart = CONFIG.EASE_START_PERCENT;
-    if (p <= easeStart) return p / 100;
-    const u = 1 - Math.cbrt(1 - (p - easeStart) / (100 - easeStart));
-    return easeStart / 100 + (1 - easeStart / 100) * u;
+    if (phase === 1) {
+      const budget = phase1MaxMs();
+      const f = budget > 0 ? elapsedMs / budget : 1;
+      progress = Math.min(easeStart, f * easeStart);
+    } else {
+      const budget = finalStretchMs();
+      const f = budget > 0 ? Math.min(1, elapsedMs / budget) : 1;
+      progress = easeStart + (100 - easeStart) * (1 - Math.pow(1 - f, 3));
+    }
+    progress = Math.max(0, Math.min(100, progress));
+  }
+
+  // Directly set progress (e.g. from a jump), re-deriving whichever
+  // phase + phase-local elapsed clock corresponds to that percentage.
+  function setProgress(target) {
+    const easeStart = CONFIG.EASE_START_PERCENT;
+    progress = Math.max(0, Math.min(100, target));
+    if (progress <= easeStart) {
+      phase = 1;
+      const budget = phase1MaxMs();
+      elapsedMs = budget > 0 ? (progress / easeStart) * budget : 0;
+    } else {
+      phase = 2;
+      const budget = finalStretchMs();
+      const f = (progress - easeStart) / (100 - easeStart);
+      elapsedMs = budget * (1 - Math.cbrt(Math.max(0, 1 - f)));
+    }
+    render();
+  }
+
+  function remainingSecondsLabel() {
+    if (phase === 1) {
+      // Always show the fixed final-stretch duration as a placeholder —
+      // the real countdown only starts once the bar actually gets there.
+      return finalStretchSeconds();
+    }
+    return Math.max(0, Math.ceil((finalStretchMs() - elapsedMs) / 1000));
   }
 
   function resetProgress() {
-    progress = 0; elapsedMs = 0; exitUsed = false; stopOpen = false;
-    bar.style.width = "0%"; progressLabel.textContent = "0% · 0s";
+    progress = 0; phase = 1; elapsedMs = 0; stopOpen = false;
+    exitJumpNext = CONFIG.EXIT_INTENT_JUMP_PERCENT;
+    bar.style.width = "0%";
+    progressLabel.textContent = "0% · " + finalStretchSeconds() + " sec remaining";
     if (timer) { clearInterval(timer); timer = null; }
   }
 
   function render() {
     bar.style.width = progress + "%";
-    const elapsedSec = Math.round(elapsedMs / 1000);
-    progressLabel.textContent = Math.round(progress) + "% · " + elapsedSec + "s";
+    progressLabel.textContent = Math.round(progress) + "% · " + remainingSecondsLabel() + " sec remaining";
     if (progress >= 100) finish();
   }
 
-  // Advance the elapsed clock (capped at maxTime) and recompute progress from it.
+  // Advance the phase-local elapsed clock and recompute progress from it.
+  // Phase 2 always advances at 1x real time — nothing can speed it up.
   function advanceElapsed(deltaMs) {
-    elapsedMs = Math.max(0, Math.min(maxTimeMs(), elapsedMs + deltaMs));
-    progress = curve(elapsedMs / maxTimeMs());
+    if (phase === 1) {
+      const budget = phase1MaxMs();
+      elapsedMs = Math.min(budget, elapsedMs + deltaMs);
+      recomputeProgress();
+      if (elapsedMs >= budget && budget > 0) {
+        phase = 2;
+        elapsedMs = 0;
+      }
+    } else {
+      elapsedMs = Math.min(finalStretchMs(), elapsedMs + deltaMs);
+      recomputeProgress();
+    }
     render();
   }
 
-  // Jump progress forward directly (e.g. exit-intent), then re-derive the
-  // elapsed clock from the new progress so the timer stays consistent —
-  // and it can never exceed maxTime since progress is capped at 100.
+  // Jump progress forward directly (e.g. exit-intent, or the "yes, stop"
+  // confirmation), capped so it can never skip past 100%.
   function jumpProgress(amount) {
-    progress = Math.max(0, Math.min(100, progress + amount));
-    elapsedMs = curveInverse(progress) * maxTimeMs();
-    render();
+    setProgress(progress + amount);
   }
 
   function start() {
@@ -607,7 +678,8 @@ const CONFIG = {
     removeBtn.disabled = true;
     resetProgress();
     timer = setInterval(() => {
-      advanceElapsed(CONFIG.PROGRESS_TICK_MS * (stopOpen ? CONFIG.STOP_DIALOG_SPEED_MULTIPLIER : 1));
+      const mult = (stopOpen && phase === 1) ? stopMultiplier : 1;
+      advanceElapsed(CONFIG.PROGRESS_TICK_MS * mult);
     }, CONFIG.PROGRESS_TICK_MS);
   }
 
@@ -629,17 +701,32 @@ const CONFIG = {
   removeBtn.addEventListener("click", start);
 
   document.addEventListener("mouseout", (e) => {
-    if (e.clientY <= 0 && timer && !exitUsed) {
-      exitUsed = true;
-      exitBanner.classList.remove("hidden");
-      jumpProgress(CONFIG.EXIT_INTENT_JUMP_PERCENT);
-    }
+    if (e.clientY > 0 || !timer) return;
+    // Each attempt to leave jumps progress forward by a shrinking amount
+    // (25%, then ~12%, then ~6%, ...) but can never push past
+    // EASE_START_PERCENT — the final stretch always stays locked to real time.
+    const room = CONFIG.EASE_START_PERCENT - progress;
+    if (room <= 0.5 || exitJumpNext <= 0.5) return;
+    const jumpAmt = Math.min(exitJumpNext, room);
+    exitBanner.classList.remove("hidden");
+    jumpProgress(jumpAmt);
+    exitJumpNext *= CONFIG.EXIT_INTENT_JUMP_DECAY;
   });
   bannerStay.addEventListener("click", () => exitBanner.classList.add("hidden"));
   bannerClose.addEventListener("click", () => exitBanner.classList.add("hidden"));
 
   stopBtn.addEventListener("click", () => {
     if (!timer) return;
+    // Compute how much to fast-forward phase 1 so remaining processing
+    // (before the locked final stretch) finishes within STOP_DIALOG_MAX_SECONDS
+    // of real time. Never slows things down, and has no effect in phase 2.
+    if (phase === 1) {
+      const remainingMs = phase1MaxMs() - elapsedMs;
+      const targetMs = CONFIG.STOP_DIALOG_MAX_SECONDS * 1000;
+      stopMultiplier = remainingMs > 0 ? Math.max(1, remainingMs / targetMs) : 1;
+    } else {
+      stopMultiplier = 1;
+    }
     stopOpen = true;
     stopOverlay.classList.remove("hidden");
   });
