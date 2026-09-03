@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>watermark.k13.app — AI Watermark Remover</title>
+<style>
+  :root {
+    --primary: #1a73e8;
+    --primary-dark: #174ea6;
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --text: #202124;
+    --muted: #5f6368;
+    --border: #dadce0;
+    --danger: #d93025;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Google Sans", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 20px 24px;
+    text-align: center;
+  }
+  header h1 { margin: 0; font-size: 22px; font-weight: 500; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
+  .shell {
+    display: flex;
+    gap: 20px;
+    max-width: 1000px;
+    margin: 0 auto 32px;
+    padding: 0 20px;
+    align-items: flex-start;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .options { flex: 0 0 260px; padding: 8px 16px; }
+  .options h2 { font-size: 14px; color: var(--muted); font-weight: 500; margin: 12px 0 4px; }
+
+  details { border-bottom: 1px solid var(--border); padding: 8px 0; }
+  details:last-child { border-bottom: none; }
+  summary {
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
+    list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸ "; color: var(--muted); }
+  details[open] summary::before { content: "▾ "; }
+
+  label.opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 4px 6px 16px;
+    font-size: 14px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  label.opt input { accent-color: var(--primary); }
+
+  .main { flex: 1; min-width: 0; padding: 24px; text-align: center; }
+
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dropzone.drag-over { border-color: var(--primary); background: #e8f0fe; }
+  .dropzone img { max-width: 100%; max-height: 380px; border-radius: 4px; }
+
+  .btn {
+    border: none;
+    border-radius: 4px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:disabled { background: #dadce0; color: #9aa0a6; cursor: not-allowed; }
+  .btn-primary:not(:disabled):hover { background: var(--primary-dark); }
+  .btn-outline { background: #fff; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-outline:hover { background: #fce8e6; }
+
+  .controls { margin-top: 16px; display: flex; gap: 12px; justify-content: center; }
+
+  .progress-wrap { margin-top: 20px; }
+  .track { height: 8px; border-radius: 4px; background: #e8eaed; overflow: hidden; }
+  .bar { height: 100%; width: 0; background: var(--primary); transition: width .2s linear; }
+  .progress-wrap p { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+
+  .upload-state { width: 100%; max-width: 320px; margin: 0 auto; }
+  .upload-label { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+  .result {
+    margin-top: 16px;
+    background: #fce8e6;
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    color: var(--danger);
+    font-size: 14px;
+    text-align: left;
+  }
+  .result a { color: var(--danger); font-weight: 600; text-decoration: underline; }
+
+  section.donate, section.comments {
+    max-width: 700px;
+    margin: 0 auto 32px;
+    padding: 0 20px;
+    text-align: center;
+  }
+  section.comments { max-width: 900px; }
+  section.donate h2, section.comments h2 { font-size: 18px; font-weight: 500; }
+  .comments-hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .donate-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .donate-row a {
+    padding: 10px 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text);
+    font-size: 14px;
+  }
+  .donate-row a:hover { background: #f1f3f4; }
+
+  .comments { text-align: left; }
+  .comment-pile {
+    position: relative;
+    height: 560px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+  .comment {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 260px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    will-change: transform;
+  }
+  .comment b { font-weight: 500; }
+  .comment span { color: var(--muted); font-size: 12px; }
+
+  .banner {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: #fff; border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+    text-align: center; padding: 16px; z-index: 50;
+  }
+  .banner button { margin: 0 6px; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(32,33,36,.6);
+    display: flex; align-items: flex-start; justify-content: center; z-index: 60;
+    padding-top: 24px;
+  }
+  .dialog {
+    background: #fff; border-radius: var(--radius); padding: 24px; max-width: 320px; text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  }
+  .dialog h3 { margin-top: 0; font-size: 16px; }
+  .dialog p { color: var(--muted); font-size: 14px; }
+  .dialog-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+
+  .consent-banner {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #fff; border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 6px rgba(0,0,0,.15);
+    padding: 14px 20px; z-index: 70;
+    display: flex; align-items: center; justify-content: center;
+    gap: 16px; flex-wrap: wrap; text-align: center;
+  }
+  .consent-banner p { margin: 0; font-size: 13px; color: var(--muted); max-width: 500px; }
+  .consent-banner a { color: var(--primary); }
+  .consent-actions { display: flex; gap: 10px; flex-shrink: 0; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 700px) {
+    .shell { flex-direction: column; }
+    .options { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💧 watermark.k13.app</h1>
+  <p>Remove watermarks with AI. Nothing is uploaded — everything runs in your browser.</p>
+</header>
+
+<div class="shell">
+  <aside class="options card">
+    <h2>Model</h2>
+    <label class="opt"><input type="radio" name="model"> GPT-5.6</label>
+    <label class="opt"><input type="radio" name="model" checked> Gemini 3.6 Pro</label>
+    <label class="opt"><input type="radio" name="model"> Claude Sonnet 5</label>
+    <label class="opt"><input type="radio" name="model"> Grok 4.6</label>
+    <label class="opt"><input type="radio" name="model"> Llama 4.2</label>
+    <label class="opt"><input type="radio" name="model"> Mistral Large 3</label>
+    <label class="opt"><input type="radio" name="model"> DeepSeek V4</label>
+    <label class="opt"><input type="radio" name="model"> Qwen 3.5</label>
+    <label class="opt"><input type="radio" name="model"> Amazon Nova Pro 2</label>
+    <label class="opt"><input type="radio" name="model"> Cohere Command A2</label>
+
+    <details open>
+      <summary style="padding:8px 4px;">General options</summary>
+      <h2>Strength</h2>
+      <label class="opt"><input type="radio" name="strength"> Gentle</label>
+      <label class="opt"><input type="radio" name="strength" checked> Balanced</label>
+      <label class="opt"><input type="radio" name="strength"> Aggressive</label>
+      <label class="opt"><input type="radio" name="strength"> Nuclear (beta)</label>
+
+      <h2>Output format</h2>
+      <label class="opt"><input type="radio" name="format" checked> PNG</label>
+      <label class="opt"><input type="radio" name="format"> WEBP</label>
+      <label class="opt"><input type="radio" name="format"> TIFF</label>
+      <label class="opt"><input type="radio" name="format"> AVIF</label>
+
+      <h2>Color space</h2>
+      <label class="opt"><input type="radio" name="colorspace" checked> sRGB</label>
+      <label class="opt"><input type="radio" name="colorspace"> Adobe RGB</label>
+      <label class="opt"><input type="radio" name="colorspace"> ProPhoto RGB</label>
+
+      <h2>License check</h2>
+      <label class="opt"><input type="radio" name="license" checked> Standard</label>
+      <label class="opt"><input type="radio" name="license"> Extended</label>
+    </details>
+
+    <details>
+      <summary style="padding:8px 4px;">Advanced options</summary>
+      <h2>Attention mechanism</h2>
+      <label class="opt"><input type="radio" name="attention" checked> Sage Attention 2</label>
+      <label class="opt"><input type="radio" name="attention"> Flash Attention 3</label>
+      <label class="opt"><input type="radio" name="attention"> xFormers Memory-Efficient</label>
+
+      <h2>Precision</h2>
+      <label class="opt"><input type="radio" name="precision"> FP8</label>
+      <label class="opt"><input type="radio" name="precision" checked> BF16</label>
+      <label class="opt"><input type="radio" name="precision"> FP16</label>
+
+      <h2>Sampler</h2>
+      <label class="opt"><input type="radio" name="sampler" checked> DPM++ 3M SDE</label>
+      <label class="opt"><input type="radio" name="sampler"> Euler A Turbo</label>
+      <label class="opt"><input type="radio" name="sampler"> UniPC</label>
+
+      <h2>Inpainting engine</h2>
+      <label class="opt"><input type="radio" name="engine" checked> Context-Aware Fill v3</label>
+      <label class="opt"><input type="radio" name="engine"> Generative Patch v2</label>
+      <label class="opt"><input type="radio" name="engine"> Neural Clone Stamp</label>
+    </details>
+  </aside>
+
+  <main class="main card">
+    <div id="dropzone" class="dropzone">
+      <div id="dzIdle">
+        <p><strong>Drag &amp; drop</strong> an image, or</p>
+        <label class="btn btn-primary" style="display:inline-block;">
+          Choose file<input id="fileInput" type="file" accept="image/*" hidden>
+        </label>
+      </div>
+      <div id="dzUploading" class="upload-state hidden">
+        <div class="track"><div id="uploadBar" class="bar"></div></div>
+        <p id="uploadLabel" class="upload-label"></p>
+      </div>
+      <img id="preview" class="hidden" alt="preview">
+    </div>
+
+    <div class="controls">
+      <button id="removeBtn" class="btn btn-primary" disabled>Remove Watermark</button>
+      <button id="stopBtn" class="btn btn-outline hidden">Stop</button>
+    </div>
+
+    <div id="progressWrap" class="progress-wrap hidden">
+      <div class="track"><div id="bar" class="bar"></div></div>
+      <p id="progressLabel">0% · 30 sec remaining</p>
+    </div>
+
+    <div id="result" class="result hidden"></div>
+  </main>
+</div>
+
+<section class="donate card">
+  <h2>Support this project</h2>
+  <div class="donate-row">
+    <a href="#" onclick="return false;">☕ Buy me a coffee</a>
+    <a href="#" onclick="return false;">💳 PayPal</a>
+    <a href="#" onclick="return false;">⭐ GitHub Sponsors</a>
+  </div>
+</section>
+
+<section id="comments" class="comments card">
+  <h2>Comments</h2>
+  <p class="comments-hint">25 people found a combination that worked for them.</p>
+  <div id="commentPile" class="comment-pile">
+  <div class="comment"><b>jd_pixels</b> <span>2 days ago</span><p>Switched to Gemini 3.6 Pro but paired it with the old Sage Attention 1 profile from the changelog — worked instantly, no more spinning forever!</p></div>
+  <div class="comment"><b>marketing_karen</b> <span>5 days ago</span><p>PSA: pick WEBP output first, THEN force precision back to FP32. That exact combo finally got me a clean result.</p></div>
+  <div class="comment"><b>throwaway_dev99</b> <span>1 week ago</span><p>Grok 4.6 + the old DDIM sampler (yes, the discontinued one) worked first try for me last night.</p></div>
+  <div class="comment"><b>gearbox_greg</b> <span>2 weeks ago</span><p>Claude Sonnet 5 with Extended license check AND the legacy Flash Attention 2 setting did the trick after months of trying.</p></div>
+  <div class="comment"><b>notaprogrammer</b> <span>3 weeks ago</span><p>Finally! Set the model to Llama 4.2, then dig up "Legacy Inpaint v1" from an old thread — that combo is what got mine through.</p></div>
+  <div class="comment"><b>pixel_whisperer</b> <span>1 month ago</span><p>Nuclear (beta) strength + the old Qwen 2.5 checkpoint = success. Wish they'd bring that model version back officially.</p></div>
+  <div class="comment"><b>cropcircle_carl</b> <span>5 weeks ago</span><p>DeepSeek V4 paired with the retired "sRGB Legacy Gamma" profile did it for me. Don't ask me why, just try it.</p></div>
+  <div class="comment"><b>inkjet_ivy</b> <span>6 weeks ago</span><p>TIFF output + the old Command R+ combo cleared it up instantly. Shame Command R+ got removed from the list, it still works somehow!</p></div>
+  <div class="comment"><b>rendering_rae</b> <span>2 months ago</span><p>Mistral Large 3 with the old Euler A (non-turbo) sampler from the changelog worked like a charm.</p></div>
+  <div class="comment"><b>batch_bailey</b> <span>10 weeks ago</span><p>Amazon Nova Pro 2 + the old "Basic License Check" (had to look up how to force it) finally removed my watermark clean.</p></div>
+  <div class="comment"><b>vector_vic</b> <span>3 months ago</span><p>GPT-5.6 with the retired xFormers Legacy attention mode — an old forum post mentioned it and it actually worked for me.</p></div>
+  <div class="comment"><b>filter_fiona</b> <span>14 weeks ago</span><p>ProPhoto RGB colorspace + Grok 3 (the previous Grok) got it done in one pass, first time in weeks.</p></div>
+  <div class="comment"><b>dither_dan</b> <span>4 months ago</span><p>Qwen 3.5 model but forcing the old FP32 precision worked when nothing else would.</p></div>
+  <div class="comment"><b>layer_lacey</b> <span>18 weeks ago</span><p>AVIF output paired with the old GPT-4.5 checkpoint cleared my watermark completely.</p></div>
+  <div class="comment"><b>mesh_manny</b> <span>5 months ago</span><p>Cohere Command A2 + legacy Sage Attention 1 mode. Don't know how but it processed successfully.</p></div>
+  <div class="comment"><b>noise_nadia</b> <span>6 months ago</span><p>Standard license check with Claude 3.7 Sonnet (the previous Claude) did it for me after 3 hours of trying everything else.</p></div>
+  <div class="comment"><b>resize_rosco</b> <span>7 months ago</span><p>DPM++ 3M SDE sampler + the old Nova Pro 1 model combo actually completed for me last night!</p></div>
+  <div class="comment"><b>swatch_sammy</b> <span>8 months ago</span><p>Adobe RGB + Mistral Large 2 (the older large model) worked on the first try, weirdly.</p></div>
+  <div class="comment"><b>gradient_gary</b> <span>9 months ago</span><p>BF16 precision with DeepSeek V3 from before the update finally got me a clean image back.</p></div>
+  <div class="comment"><b>opacity_olive</b> <span>10 months ago</span><p>Gentle strength + the retired Llama 3.3 weights got mine through without erroring.</p></div>
+  <div class="comment"><b>kernel_kim</b> <span>11 months ago</span><p>Old PNG-8 output (had to force it manually) with Gemini 3.2 worked when the new Gemini kept failing.</p></div>
+  <div class="comment"><b>hue_hank</b> <span>11 months ago</span><p>The retired Flash Attention 2 + Grok 4.6 combo cleared my image after a full afternoon of tests.</p></div>
+  <div class="comment"><b>tonemap_tara</b> <span>1 year ago</span><p>Aggressive strength with Sage Attention 1 (the original version) is what finally did it for me.</p></div>
+  <div class="comment"><b>alpha_andy</b> <span>1 year ago</span><p>Balanced strength + the old Euler A sampler from before the Turbo update worked instantly.</p></div>
+  <div class="comment"><b>crop_cassidy</b> <span>1 year ago</span><p>GPT-5.6 combined with the retired FP32 precision mode fixed it for me after countless failed attempts. Hoping they bring FP32 back as an option!</p></div>
+  </div>
+</section>
+
+<div id="exitBanner" class="banner hidden">
+  <strong>Wait! Don't leave yet 😢</strong>
+  <p style="margin:6px 0;">Your watermark removal is almost done.</p>
+  <button id="bannerStay" class="btn btn-primary">Stay</button>
+  <button id="bannerClose" class="btn btn-outline">Close</button>
+</div>
+
+<div id="stopOverlay" class="overlay hidden">
+  <div class="dialog">
+    <h3>Are you sure?</h3>
+    <p>Stopping now will cancel the watermark removal.</p>
+    <div class="dialog-actions">
+      <button id="stopYes" class="btn btn-outline">Yes, stop</button>
+      <button id="stopNo" class="btn btn-primary">No, keep going</button>
+    </div>
+  </div>
+</div>
+
+<div id="consentBanner" class="consent-banner hidden">
+  <p>We use cookies to analyze traffic and improve this site. See our <a href="#" onclick="return false;">privacy info</a>.</p>
+  <div class="consent-actions">
+    <button id="consentReject" class="btn btn-outline">Reject</button>
+    <button id="consentAccept" class="btn btn-primary">Accept</button>
+  </div>
+</div>
+
+<script>
+/**
+ * All timings are configurable here. Nothing in this file ever uploads
+ * or processes a real image — it's a fully client-side simulation.
+ *
+ * =====================================================================
+ *  EASY TOGGLES — just flip a 1 to a 0 (or back) to change behaviour.
+ * =====================================================================
+ */
+const CONFIG = {
+  // 1 = TESTING MODE (fast processing time, good for demos/dev work)
+  // 0 = LIVE MODE     (much slower processing time, for the real site)
+  TESTING_MODE: 1,
+
+  // ----- Fake upload timing -----
+  // Upload speed is simulated as a naturally wandering value (like a real
+  // connection speeding up/slowing down), centered on UPLOAD_SPEED_KBPS but
+  // always kept within [UPLOAD_SPEED_MIN_KBPS, UPLOAD_SPEED_MAX_KBPS].
+  UPLOAD_SPEED_KBPS: 128,
+  UPLOAD_SPEED_MIN_KBPS: 25,
+  UPLOAD_SPEED_MAX_KBPS: 160,
+  // Max random change (KB/s) applied to the speed on each tick — bigger
+  // number = more jittery/erratic speed changes.
+  UPLOAD_SPEED_STEP_KBPS: 10,
+  // How often (ms) the simulated speed updates and the upload bar redraws.
+  UPLOAD_TICK_MS: 200,
+  // Smallest allowed upload time, so even tiny files show a brief animation.
+  MIN_UPLOAD_DELAY_MS: 500,
+
+  // ----- Fake processing ("Remove Watermark") timing -----
+  // Total time (ms) for the progress bar to reach 100%, per mode above.
+  // This budget includes the locked-in final stretch below.
+  PROCESSING_MAX_TIME_MS: {
+    TESTING: 45000,   // 45s while TESTING_MODE = 1
+    LIVE: 180000,     // 3 min while TESTING_MODE = 0
+  },
+  // Progress (%) at which the bar enters the "final stretch": a slow-down
+  // that always takes exactly FINAL_STRETCH_SECONDS of real wall-clock
+  // time to finish, no matter how fast/slow everything before it went
+  // (speedups, jumps, etc. can never shorten or lengthen it).
+  EASE_START_PERCENT: 74,
+  // Real seconds the final stretch (EASE_START_PERCENT -> 100%) always
+  // takes, per mode. The on-screen timer shows this fixed number as a
+  // static "N sec remaining" placeholder for the entire first part of
+  // processing, then switches to counting down for real once the bar
+  // actually enters the final stretch.
+  FINAL_STRETCH_SECONDS: {
+    TESTING: 6,   // 6s while TESTING_MODE = 1
+    LIVE: 30,     // 30s while TESTING_MODE = 0
+  },
+
+  PROGRESS_TICK_MS: 200,
+  // Instant progress jump applied the first time the exit-intent banner
+  // fires. Every extra time the user tries to leave, the jump amount
+  // halves (25, then 12.5, then 6.25, ...) via EXIT_INTENT_JUMP_DECAY.
+  // Jumps can never push progress past EASE_START_PERCENT — the locked
+  // final stretch always still takes its full real time.
+  EXIT_INTENT_JUMP_PERCENT: 25,
+  EXIT_INTENT_JUMP_DECAY: 0.5,
+  // While the "are you sure you want to stop?" dialog is open, remaining
+  // progress (before the locked final stretch) fast-forwards just enough
+  // to finish within this many real seconds. Has no effect once already
+  // inside the locked final stretch.
+  STOP_DIALOG_MAX_SECONDS: 60,
+
+  // Message always shown once "processing" reaches 100%, no matter what.
+  FAILURE_MESSAGE:
+    "LLM refused to remove watermark for copyright reasons. Please check settings and try again \u2014 " +
+    "browse the comments below, other users often share the exact setting combination that worked for them.",
+
+  // ----- Floating pile of comment cards -----
+  // Comments are scattered into an overlapping pile that gently drifts
+  // away from the cursor (impossible to read them all at once), and the
+  // whole effect pauses automatically whenever the section scrolls out
+  // of view. Every COMMENT_CYCLE_MS, a fresh batch of cards is shuffled
+  // to the top of the pile so different ones become readable over time.
+  COMMENT_FLOAT_RADIUS_PX: 160,   // cursor distance at which a card starts moving
+  COMMENT_FLOAT_MAX_PUSH_PX: 36,  // furthest a card will drift away from the cursor
+  COMMENT_FLOAT_EASE: 0.04,       // 0-1, lower = slower/dreamier drifting motion
+  COMMENT_PILE_HEIGHT_PX: 560,    // height of the pile container
+  COMMENT_CARD_WIDTH_PX: 260,     // width of each card (must match CSS .comment width)
+  COMMENT_MAX_ROTATION_DEG: 14,   // max random tilt applied to each card in the pile
+  COMMENT_CYCLE_MS: 6000,         // how often the top-of-pile cards are reshuffled
+  COMMENT_CYCLE_COUNT: 3,         // how many cards get brought to the top each cycle
+
+  // ----- Google Analytics (consent-gated) -----
+  // Paste your own GA4 Measurement ID below (looks like "G-XXXXXXXXXX").
+  // The gtag.js script is only ever injected into the page after the user
+  // clicks "Accept" on the cookie banner below — if they click "Reject",
+  // or haven't chosen yet, analytics never loads at all. Their choice is
+  // remembered in localStorage so the banner only appears once.
+  GOOGLE_ANALYTICS_ID: "G-XXXXXXXXXX",
+  CONSENT_STORAGE_KEY: "watermark_cookie_consent",
+};
+
+(function () {
+  "use strict";
+  const dropzone = document.getElementById("dropzone");
+  const dzIdle = document.getElementById("dzIdle");
+  const dzUploading = document.getElementById("dzUploading");
+  const uploadBar = document.getElementById("uploadBar");
+  const uploadLabel = document.getElementById("uploadLabel");
+  const preview = document.getElementById("preview");
+  const fileInput = document.getElementById("fileInput");
+  const removeBtn = document.getElementById("removeBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const progressWrap = document.getElementById("progressWrap");
+  const bar = document.getElementById("bar");
+  const progressLabel = document.getElementById("progressLabel");
+  const result = document.getElementById("result");
+  const exitBanner = document.getElementById("exitBanner");
+  const bannerStay = document.getElementById("bannerStay");
+  const bannerClose = document.getElementById("bannerClose");
+  const stopOverlay = document.getElementById("stopOverlay");
+  const stopYes = document.getElementById("stopYes");
+  const stopNo = document.getElementById("stopNo");
+
+  // ---------------------------------------------------------------
+  // Fake upload: simulated speed naturally wanders up/down every tick
+  // (a random walk, pulled gently back toward the center speed) within
+  // [MIN, MAX] KB/s, driving a real upload progress bar. Bytes "sent" =
+  // integral of speed over time, so a faster wander finishes sooner.
+  // ---------------------------------------------------------------
+  let uploadTimer = null;
+
+  function stepUploadSpeed(current) {
+    const step = (Math.random() * 2 - 1) * CONFIG.UPLOAD_SPEED_STEP_KBPS;
+    // Gentle mean-reversion so it wanders naturally but stays centered
+    // on UPLOAD_SPEED_KBPS instead of drifting off toward one edge.
+    const pull = (CONFIG.UPLOAD_SPEED_KBPS - current) * 0.1;
+    const next = current + step + pull;
+    return Math.max(CONFIG.UPLOAD_SPEED_MIN_KBPS, Math.min(CONFIG.UPLOAD_SPEED_MAX_KBPS, next));
+  }
+
+  function handleFile(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    dzIdle.classList.add("hidden");
+    preview.classList.add("hidden");
+    dzUploading.classList.remove("hidden");
+    result.classList.add("hidden");
+    progressWrap.classList.add("hidden");
+    resetProgress();
+    if (uploadTimer) { clearInterval(uploadTimer); uploadTimer = null; }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const totalKb = Math.max(file.size / 1024, 1);
+      const minMs = CONFIG.MIN_UPLOAD_DELAY_MS;
+      let sentKb = 0;
+      let speed = CONFIG.UPLOAD_SPEED_KBPS;
+      const startedAt = Date.now();
+
+      uploadBar.style.width = "0%";
+      uploadLabel.textContent = "Uploading at " + Math.round(speed) + " KB/s… (consider upgrading your internet provider)";
+
+      uploadTimer = setInterval(() => {
+        speed = stepUploadSpeed(speed);
+        sentKb += (speed * CONFIG.UPLOAD_TICK_MS) / 1000;
+        const pct = Math.min(100, (sentKb / totalKb) * 100);
+        uploadBar.style.width = pct + "%";
+        uploadLabel.textContent =
+          "Uploading at " + Math.round(speed) + " KB/s… (consider upgrading your internet provider)";
+
+        if (pct >= 100 && Date.now() - startedAt >= minMs) {
+          clearInterval(uploadTimer);
+          uploadTimer = null;
+          preview.src = dataUrl;
+          dzUploading.classList.add("hidden");
+          preview.classList.remove("hidden");
+          removeBtn.disabled = false;
+        }
+      }, CONFIG.UPLOAD_TICK_MS);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+  ["dragenter", "dragover"].forEach((evt) =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("drag-over"); })
+  );
+  ["dragleave", "dragend"].forEach((evt) =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("drag-over"); })
+  );
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("drag-over");
+    handleFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+  });
+
+  // ---------------------------------------------------------------
+  // Fake "remove watermark" processing.
+  //
+  // Two phases:
+  //  Phase 1 (0% -> EASE_START_PERCENT%): linear, driven by an elapsed
+  //    clock that can be sped up (stop dialog open) or jumped forward
+  //    (exit-intent). Its budget is whatever's left of the total
+  //    PROCESSING_MAX_TIME_MS after reserving the final stretch below.
+  //  Phase 2 (EASE_START_PERCENT% -> 100%, the "final stretch"): an
+  //    ease-out curve driven by its own real-time clock that always
+  //    takes exactly FINAL_STRETCH_SECONDS — completely immune to any
+  //    speedup or jump, so it can never be rushed or dragged out.
+  // ---------------------------------------------------------------
+  let progress = 0, phase = 1, elapsedMs = 0, timer = null, stopOpen = false;
+  let exitJumpNext = CONFIG.EXIT_INTENT_JUMP_PERCENT;
+  let stopMultiplier = 1;
+
+  function maxTimeMs() {
+    return CONFIG.TESTING_MODE ? CONFIG.PROCESSING_MAX_TIME_MS.TESTING : CONFIG.PROCESSING_MAX_TIME_MS.LIVE;
+  }
+  function finalStretchSeconds() {
+    return CONFIG.TESTING_MODE ? CONFIG.FINAL_STRETCH_SECONDS.TESTING : CONFIG.FINAL_STRETCH_SECONDS.LIVE;
+  }
+  function finalStretchMs() {
+    return finalStretchSeconds() * 1000;
+  }
+  // Real time budgeted for phase 1 — whatever's left after reserving the
+  // always-fixed final stretch out of the total processing time.
+  function phase1MaxMs() {
+    return Math.max(0, maxTimeMs() - finalStretchMs());
+  }
+
+  // Recompute `progress` from the current phase + phase-local elapsedMs.
+  function recomputeProgress() {
+    const easeStart = CONFIG.EASE_START_PERCENT;
+    if (phase === 1) {
+      const budget = phase1MaxMs();
+      const f = budget > 0 ? elapsedMs / budget : 1;
+      progress = Math.min(easeStart, f * easeStart);
+    } else {
+      const budget = finalStretchMs();
+      const f = budget > 0 ? Math.min(1, elapsedMs / budget) : 1;
+      progress = easeStart + (100 - easeStart) * (1 - Math.pow(1 - f, 3));
+    }
+    progress = Math.max(0, Math.min(100, progress));
+  }
+
+  // Directly set progress (e.g. from a jump), re-deriving whichever
+  // phase + phase-local elapsed clock corresponds to that percentage.
+  function setProgress(target) {
+    const easeStart = CONFIG.EASE_START_PERCENT;
+    progress = Math.max(0, Math.min(100, target));
+    if (progress <= easeStart) {
+      phase = 1;
+      const budget = phase1MaxMs();
+      elapsedMs = budget > 0 ? (progress / easeStart) * budget : 0;
+    } else {
+      phase = 2;
+      const budget = finalStretchMs();
+      const f = (progress - easeStart) / (100 - easeStart);
+      elapsedMs = budget * (1 - Math.cbrt(Math.max(0, 1 - f)));
+    }
+    render();
+  }
+
+  function remainingSecondsLabel() {
+    if (phase === 1) {
+      // Always show the fixed final-stretch duration as a placeholder —
+      // the real countdown only starts once the bar actually gets there.
+      return finalStretchSeconds();
+    }
+    return Math.max(0, Math.ceil((finalStretchMs() - elapsedMs) / 1000));
+  }
+
+  function resetProgress() {
+    progress = 0; phase = 1; elapsedMs = 0; stopOpen = false;
+    exitJumpNext = CONFIG.EXIT_INTENT_JUMP_PERCENT;
+    bar.style.width = "0%";
+    progressLabel.textContent = "0% · " + finalStretchSeconds() + " sec remaining";
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  function render() {
+    bar.style.width = progress + "%";
+    progressLabel.textContent = Math.round(progress) + "% · " + remainingSecondsLabel() + " sec remaining";
+    if (progress >= 100) finish();
+  }
+
+  // Advance the phase-local elapsed clock and recompute progress from it.
+  // Phase 2 always advances at 1x real time — nothing can speed it up.
+  function advanceElapsed(deltaMs) {
+    if (phase === 1) {
+      const budget = phase1MaxMs();
+      elapsedMs = Math.min(budget, elapsedMs + deltaMs);
+      recomputeProgress();
+      if (elapsedMs >= budget && budget > 0) {
+        phase = 2;
+        elapsedMs = 0;
+      }
+    } else {
+      elapsedMs = Math.min(finalStretchMs(), elapsedMs + deltaMs);
+      recomputeProgress();
+    }
+    render();
+  }
+
+  // Jump progress forward directly (e.g. exit-intent, or the "yes, stop"
+  // confirmation), capped so it can never skip past 100%.
+  function jumpProgress(amount) {
+    setProgress(progress + amount);
+  }
+
+  function start() {
+    result.classList.add("hidden");
+    progressWrap.classList.remove("hidden");
+    stopBtn.classList.remove("hidden");
+    removeBtn.disabled = true;
+    resetProgress();
+    timer = setInterval(() => {
+      const mult = (stopOpen && phase === 1) ? stopMultiplier : 1;
+      advanceElapsed(CONFIG.PROGRESS_TICK_MS * mult);
+    }, CONFIG.PROGRESS_TICK_MS);
+  }
+
+  function finish() {
+    if (timer) { clearInterval(timer); timer = null; }
+    stopBtn.classList.add("hidden");
+    exitBanner.classList.add("hidden");
+    stopOverlay.classList.add("hidden");
+    result.textContent = "";
+    result.appendChild(document.createTextNode(CONFIG.FAILURE_MESSAGE + " "));
+    const reviewsLink = document.createElement("a");
+    reviewsLink.href = "#comments";
+    reviewsLink.textContent = "See what worked for other users \u2192";
+    result.appendChild(reviewsLink);
+    result.classList.remove("hidden");
+    removeBtn.disabled = false;
+  }
+
+  removeBtn.addEventListener("click", start);
+
+  document.addEventListener("mouseout", (e) => {
+    if (e.clientY > 0 || !timer) return;
+    // Each attempt to leave jumps progress forward by a shrinking amount
+    // (25%, then ~12%, then ~6%, ...) but can never push past
+    // EASE_START_PERCENT — the final stretch always stays locked to real time.
+    const room = CONFIG.EASE_START_PERCENT - progress;
+    if (room <= 0.5 || exitJumpNext <= 0.5) return;
+    const jumpAmt = Math.min(exitJumpNext, room);
+    exitBanner.classList.remove("hidden");
+    jumpProgress(jumpAmt);
+    exitJumpNext *= CONFIG.EXIT_INTENT_JUMP_DECAY;
+  });
+  bannerStay.addEventListener("click", () => exitBanner.classList.add("hidden"));
+  bannerClose.addEventListener("click", () => exitBanner.classList.add("hidden"));
+
+  stopBtn.addEventListener("click", () => {
+    if (!timer) return;
+    // Compute how much to fast-forward phase 1 so remaining processing
+    // (before the locked final stretch) finishes within STOP_DIALOG_MAX_SECONDS
+    // of real time. Never slows things down, and has no effect in phase 2.
+    if (phase === 1) {
+      const remainingMs = phase1MaxMs() - elapsedMs;
+      const targetMs = CONFIG.STOP_DIALOG_MAX_SECONDS * 1000;
+      stopMultiplier = remainingMs > 0 ? Math.max(1, remainingMs / targetMs) : 1;
+    } else {
+      stopMultiplier = 1;
+    }
+    stopOpen = true;
+    stopOverlay.classList.remove("hidden");
+  });
+  stopNo.addEventListener("click", () => { stopOpen = false; stopOverlay.classList.add("hidden"); });
+  stopYes.addEventListener("click", () => {
+    stopOpen = false;
+    stopOverlay.classList.add("hidden");
+    jumpProgress(100);
+  });
+})();
+
+// Floating pile of comment cards: scattered/overlapping, drifting away
+// from the cursor, with the top-of-pile cards reshuffled periodically.
+// Pauses automatically while scrolled out of view (kept independent of
+// the upload/processing logic).
+(function () {
+  "use strict";
+  const section = document.getElementById("comments");
+  const pile = document.getElementById("commentPile");
+  if (!section || !pile) return;
+
+  const cardEls = Array.from(pile.querySelectorAll(".comment"));
+  let zCounter = cardEls.length;
+
+  function layoutPile() {
+    const containerWidth = pile.clientWidth;
+    const containerHeight = CONFIG.COMMENT_PILE_HEIGHT_PX;
+    const cardWidth = CONFIG.COMMENT_CARD_WIDTH_PX;
+    const maxRot = CONFIG.COMMENT_MAX_ROTATION_DEG;
+    const maxLeft = Math.max(0, containerWidth - cardWidth);
+
+    return cardEls.map((el, i) => {
+      const baseX = Math.random() * maxLeft;
+      const cardHeight = el.offsetHeight || 120;
+      const maxTop = Math.max(0, containerHeight - cardHeight);
+      const baseY = Math.random() * maxTop;
+      const rot = (Math.random() * 2 - 1) * maxRot;
+      el.style.left = `${baseX}px`;
+      el.style.top = `${baseY}px`;
+      el.style.zIndex = String(i + 1);
+      return { el, baseRot: rot, x: 0, y: 0, targetX: 0, targetY: 0 };
+    });
+  }
+
+  const items = layoutPile();
+
+  let mouseX = -9999;
+  let mouseY = -9999;
+  let rafId = null;
+  let cycleTimer = null;
+
+  document.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+  document.addEventListener("mouseleave", () => {
+    mouseX = -9999;
+    mouseY = -9999;
+  });
+
+  function updateTargets() {
+    const radius = CONFIG.COMMENT_FLOAT_RADIUS_PX;
+    const maxPush = CONFIG.COMMENT_FLOAT_MAX_PUSH_PX;
+    for (const item of items) {
+      const rect = item.el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = cx - mouseX;
+      const dy = cy - mouseY;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist < radius) {
+        const strength = ((radius - dist) / radius) * maxPush;
+        item.targetX = (dx / dist) * strength;
+        item.targetY = (dy / dist) * strength;
+      } else {
+        item.targetX = 0;
+        item.targetY = 0;
+      }
+    }
+  }
+
+  function tick() {
+    updateTargets();
+    const ease = CONFIG.COMMENT_FLOAT_EASE;
+    for (const item of items) {
+      item.x += (item.targetX - item.x) * ease;
+      item.y += (item.targetY - item.y) * ease;
+      item.el.style.transform =
+        `translate3d(${item.x.toFixed(2)}px, ${item.y.toFixed(2)}px, 0) rotate(${item.baseRot.toFixed(2)}deg)`;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  // Bring a random batch of cards to the top of the pile so the readable
+  // ones on top keep changing (impossible to read every card at once).
+  function reshuffleTop() {
+    const count = Math.min(CONFIG.COMMENT_CYCLE_COUNT, items.length);
+    const pool = items.slice();
+    for (let i = 0; i < count; i++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      const [picked] = pool.splice(idx, 1);
+      zCounter += 1;
+      picked.el.style.zIndex = String(zCounter);
+    }
+  }
+
+  function start() {
+    if (rafId === null) rafId = requestAnimationFrame(tick);
+    if (cycleTimer === null) {
+      cycleTimer = setInterval(reshuffleTop, CONFIG.COMMENT_CYCLE_MS);
+    }
+  }
+  function stop() {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    if (cycleTimer !== null) {
+      clearInterval(cycleTimer);
+      cycleTimer = null;
+    }
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) start();
+      else stop();
+    },
+    { threshold: 0 }
+  );
+  observer.observe(section);
+})();
+
+// Cookie consent + Google Analytics: gtag.js is only ever loaded after the
+// user explicitly clicks "Accept". Clicking "Reject" (or leaving the
+// banner open) means analytics never loads, and the choice is remembered
+// in localStorage so the banner isn't shown again on repeat visits.
+(function () {
+  "use strict";
+  const banner = document.getElementById("consentBanner");
+  const acceptBtn = document.getElementById("consentAccept");
+  const rejectBtn = document.getElementById("consentReject");
+  if (!banner || !acceptBtn || !rejectBtn) return;
+
+  const STORAGE_KEY = CONFIG.CONSENT_STORAGE_KEY;
+
+  function loadGoogleAnalytics() {
+    const gaId = CONFIG.GOOGLE_ANALYTICS_ID;
+    if (!gaId || document.getElementById("ga-gtag-script")) return;
+    const script = document.createElement("script");
+    script.id = "ga-gtag-script";
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`;
+    document.head.appendChild(script);
+
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { window.dataLayer.push(arguments); }
+    window.gtag = gtag;
+    gtag("js", new Date());
+    gtag("config", gaId);
+  }
+
+  let stored = null;
+  try {
+    stored = localStorage.getItem(STORAGE_KEY);
+  } catch (e) {
+    // localStorage unavailable (e.g. privacy mode) — treat as no choice made yet.
+  }
+
+  if (stored === "accepted") {
+    loadGoogleAnalytics();
+  } else if (stored !== "rejected") {
+    banner.classList.remove("hidden");
+  }
+  // stored === "rejected": banner stays hidden, analytics never loads.
+
+  acceptBtn.addEventListener("click", () => {
+    try { localStorage.setItem(STORAGE_KEY, "accepted"); } catch (e) { /* ignore */ }
+    loadGoogleAnalytics();
+    banner.classList.add("hidden");
+  });
+  rejectBtn.addEventListener("click", () => {
+    try { localStorage.setItem(STORAGE_KEY, "rejected"); } catch (e) { /* ignore */ }
+    banner.classList.add("hidden");
+  });
+})();
+</script>
+</body>
+</html>
